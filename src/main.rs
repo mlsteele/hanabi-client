@@ -6,6 +6,8 @@ extern crate hyper;
 extern crate tokio_core;
 extern crate serde_json;
 #[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate error_chain;
 
 mod errors;
@@ -15,9 +17,9 @@ use std::io;
 use futures::{Future, Stream};
 use hyper::Client;
 use tokio_core::reactor::Core;
-use serde_json::Value;
 
 use errors::*;
+use protocol::*;
 
 fn main() {
     if let Err(ref e) = main2() {
@@ -42,26 +44,30 @@ fn main() {
 }
 
 fn main2() -> Result<()> {
-    println!("Hello, world!");
-    "localhost:9001";
-    let mut core = Core::new().chain_err(|| "cannot create core")?;
+    let mut core = Core::new()?;
     let client = Client::new(&core.handle());
 
-    let uri = "http://httpbin.org/ip".parse().chain_err(|| "cannot parse url")?;
-    let work = client.get(uri).and_then(|res| {
+    let uri = "http://localhost:9001/hanabi/start-game".parse().chain_err(|| "cannot parse url")?;
+    let req = StartGameRequest{
+        num_players: 2,
+        name: "ooh-new-game".to_owned(),
+    };
+    let mut hreq: hyper::Request = hyper::Request::new(hyper::Method::Post, uri);
+    hreq.set_body(serde_json::to_string(&req)?);
+    let work = client.request(hreq).and_then(|res| {
         println!("Response: {}", res.status());
 
         res.body().concat2().and_then(move |body| {
-            let v: Value = serde_json::from_slice(&body).map_err(|e| {
+            let v: StartGameResponse = serde_json::from_slice(&body).map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::Other,
                     e
                 )
             })?;
-            println!("current IP address is {}", v["origin"]);
+            println!("{:?}", v);
             Ok(())
         })
     });
-    core.run(work).chain_err(|| "cannot run core")?;
+    core.run(work)?;
     Ok(())
 }

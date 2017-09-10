@@ -1,9 +1,11 @@
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StartGameRequest {
-    num_player: i32,
-    name: String,
+    pub num_players: i32,
+    pub name: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StartGameResponse {
-    status: String,
-    reason: Option<String>,
+    pub status: String,
+    pub reason: Option<String>,
 }
