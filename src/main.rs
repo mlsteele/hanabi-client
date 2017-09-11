@@ -18,8 +18,6 @@ mod protocol;
 mod client;
 
 use std::io;
-use tokio_core::reactor::Core;
-use futures::Future;
 use rand::Rng;
 
 use errors::*;
@@ -49,31 +47,22 @@ fn main() {
 }
 
 fn main2() -> Result<()> {
-    let mut core = Core::new()?;
-
     let mut client = {
         let uri = "http://localhost:9001".parse().chain_err(|| "cannot parse url")?;
-        HanabiClient::new(core.handle(), uri)
+        HanabiClient::new(uri)
     };
     let game_name = random_game_name();
     let req = StartGameRequest {
         num_players: 2,
         name: game_name.clone(),
     };
-    let work = client.start_game(&req).and_then(|res| {
-        println!("{:?}", res);
-        Ok(())
-    }).and_then(move |()| {
-        client.join_game(&JoinGameRequest{
-            game_name: game_name.clone(),
-            player_name: "player1".to_owned(),
-        })
-    })
-    .and_then(|res| {
-        println!("{:?}", res);
-        Ok(())
-    });
-    core.run(work)?;
+    let res = client.start_game(&req)?;
+    println!("{:?}", res);
+    let res = client.join_game(&JoinGameRequest{
+        game_name: game_name.clone(),
+        player_name: "player1".to_owned(),
+    })?;
+    println!("{:?}", res);
     Ok(())
 }
 
