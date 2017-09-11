@@ -1,3 +1,5 @@
+#![feature(conservative_impl_trait)]
+
 // `error_chain!` can recurse deeply
 #![recursion_limit = "1024"]
 
@@ -9,17 +11,20 @@ extern crate serde_json;
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
+extern crate rand;
 
 mod errors;
 mod protocol;
+mod client;
 
 use std::io;
-use futures::{Future, Stream};
-use hyper::Client;
 use tokio_core::reactor::Core;
+use futures::Future;
+use rand::Rng;
 
 use errors::*;
 use protocol::*;
+use client::HanabiClient;
 
 fn main() {
     if let Err(ref e) = main2() {
@@ -45,29 +50,36 @@ fn main() {
 
 fn main2() -> Result<()> {
     let mut core = Core::new()?;
-    let client = Client::new(&core.handle());
 
-    let uri = "http://localhost:9001/hanabi/start-game".parse().chain_err(|| "cannot parse url")?;
-    let req = StartGameRequest{
-        num_players: 2,
-        name: "ooh-new-game".to_owned(),
+    let mut client = {
+        let uri = "http://localhost:9001".parse().chain_err(|| "cannot parse url")?;
+        HanabiClient::new(core.handle(), uri)
     };
-    let mut hreq: hyper::Request = hyper::Request::new(hyper::Method::Post, uri);
-    hreq.set_body(serde_json::to_string(&req)?);
-    let work = client.request(hreq).and_then(|res| {
-        println!("Response: {}", res.status());
-
-        res.body().concat2().and_then(move |body| {
-            let v: StartGameResponse = serde_json::from_slice(&body).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    e
-                )
-            })?;
-            println!("{:?}", v);
-            Ok(())
+    let game_name = random_game_name();
+    let req = StartGameRequest {
+        num_players: 2,
+        name: game_name.clone(),
+    };
+    let work = client.start_game(&req).and_then(|res| {
+        println!("{:?}", res);
+        Ok(())
+    }).and_then(move |()| {
+        client.join_game(&JoinGameRequest{
+            game_name: game_name.clone(),
+            player_name: "player1".to_owned(),
         })
+    })
+    .and_then(|res| {
+        println!("{:?}", res);
+        Ok(())
     });
     core.run(work)?;
     Ok(())
+}
+
+fn random_game_name() -> String {
+    let mut rng = rand::thread_rng();
+    let bs = rng.gen::<[u8; 8]>();
+    let s: String = bs.iter().map(|b| format!("{}", b)).collect();
+    format!("game-{}", s)
 }
