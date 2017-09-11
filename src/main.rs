@@ -6,6 +6,7 @@
 extern crate futures;
 extern crate hyper;
 extern crate tokio_core;
+extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
@@ -52,17 +53,27 @@ fn main2() -> Result<()> {
         HanabiClient::new(uri)
     };
     let game_name = random_game_name();
+
     let req = StartGameRequest {
         num_players: 2,
         name: game_name.clone(),
     };
     let res = client.start_game(&req)?;
     println!("{:?}", res);
+
     let res = client.join_game(&JoinGameRequest{
         game_name: game_name.clone(),
         player_name: "player1".to_owned(),
     })?;
     println!("{:?}", res);
+    let session = res.session;
+
+    let res = client.get_state(&GetStateRequest{
+        session: session,
+        wait: false,
+    })?;
+    println!("{:?}", res);
+
     Ok(())
 }
 
