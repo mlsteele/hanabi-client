@@ -9,6 +9,7 @@ use errors::*;
 use protocol::*;
 
 /// Client to the hanabi server
+#[derive(Clone)]
 pub struct HanabiClient {
     uri: hyper::Uri,
 }

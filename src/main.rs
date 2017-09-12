@@ -19,14 +19,25 @@ mod protocol;
 mod client;
 
 use std::io;
+use std::thread;
 use rand::Rng;
 
 use errors::*;
 use protocol::*;
+use protocol::GameState::*;
 use client::HanabiClient;
 
 fn main() {
-    if let Err(ref e) = main2() {
+    let res = main2();
+    let is_err = res.is_err();
+    report_err(res);
+    if is_err {
+        ::std::process::exit(1);
+    }
+}
+
+fn report_err<T>(res: Result<T>) {
+    if let Err(ref e) = res {
         use std::io::Write;
         let stderr = &mut ::std::io::stderr();
         let errmsg = "Error writing to stderr";
@@ -61,19 +72,49 @@ fn main2() -> Result<()> {
     let res = client.start_game(&req)?;
     println!("{:?}", res);
 
+    let mut threads = vec![];
+    let client2 = client.clone();
+    let game_name2 = game_name.clone();
+    threads.push(thread::spawn(move || {
+        player_thread(client2, game_name2, 1);
+    }));
+    threads.push(thread::spawn(move || {
+        player_thread(client.clone(), game_name.clone(), 2);
+    }));
+
+    for t in threads {
+        t.join().unwrap();
+    }
+
+    println!("bye");
+    Ok(())
+}
+
+fn player_thread(client: HanabiClient, game_name: String, player_number: i32) {
+    let res = run1(client, game_name, player_number);
+    report_err(res);
+}
+
+fn run1(mut client: HanabiClient, game_name: String, player_number: i32) -> Result<()> {
     let res = client.join_game(&JoinGameRequest{
         game_name: game_name.clone(),
-        player_name: "player1".to_owned(),
+        player_name: format!("player-{}", player_number),
     })?;
     println!("{:?}", res);
     let session = res.session;
 
-    let res = client.get_state(&GetStateRequest{
-        session: session,
-        wait: false,
-    })?;
-    println!("{:?}", res);
+    for _ in 0..10 {
+        let res = client.get_state(&GetStateRequest{
+            session: session.clone(),
+            wait: true,
+        })?;
+        println!("state: {:?}", res.state.state);
+        if res.state.state != YourTurn {
+            return Err(Error::from("expected state to be your-turn"));
+        }
+    }
 
+    println!("bye");
     Ok(())
 }
 

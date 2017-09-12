@@ -37,9 +37,18 @@ pub struct GetStateResponse {
     pub state: GameStateSummary,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum GameState {
+    NotStarted,
+    WaitingForTurn,
+    YourTurn,
+    Finished,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GameStateSummary {
-    pub state: String,
+    pub state: GameState,
     pub players: Vec<String>,
     pub hand: Vec<HiddenCard>,
     pub other_hands: HashMap<String, Vec<Card>>,
